@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Network Pre/Post Migration Comparator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f6f6f4; --bg3: #f0efeb;
+    --text: #1a1a18; --text2: #6b6b67; --text3: #9e9e9a;
+    --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+    --radius: 8px; --radius-lg: 12px;
+    --mono: 'Courier New', Courier, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1c1c1a;--bg2:#252523;--bg3:#2e2e2b;--text:#e8e8e4;--text2:#9e9e9a;--text3:#6b6b67;--border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.2); }
+  }
+  body { font-family: var(--sans); background: var(--bg3); color: var(--text); min-height: 100vh; padding: 1.5rem 1rem; }
+  .page { max-width: 1100px; margin: 0 auto; }
+  .hdr { display:flex; align-items:baseline; gap:12px; margin-bottom:1.5rem; }
+  .hdr-title { font-size:20px; font-weight:600; }
+  .hdr-sub { font-size:13px; color:var(--text2); }
+  .card { background:var(--bg); border:0.5px solid var(--border); border-radius:var(--radius-lg); padding:1.25rem; margin-bottom:1rem; }
+  .tabs { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:1.25rem; }
+  .tab { font-size:12px; font-weight:500; padding:5px 11px; border-radius:var(--radius); border:0.5px solid var(--border); background:transparent; color:var(--text2); cursor:pointer; white-space:nowrap; transition:all 0.12s; }
+  .tab:hover { background:var(--bg2); color:var(--text); }
+  .tab.active { background:var(--bg); border-color:var(--border2); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+  .bdg { font-size:10px; padding:1px 5px; border-radius:4px; margin-left:4px; font-weight:600; }
+  .b-c{background:#E6F1FB;color:#0C447C} .b-j{background:#EAF3DE;color:#3B6D11} .b-n{background:#FAEEDA;color:#633806}
+  .inputs { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:12px; }
+  @media(max-width:640px){.inputs{grid-template-columns:1fr}}
+  .panel-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .plbl { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; display:flex; align-items:center; gap:5px; }
+  .lp{color:#185FA5} .lq{color:#3B6D11}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+  .dp{background:#378ADD} .dq{background:#639922}
+  .upload-row { display:flex; align-items:center; gap:6px; }
+  .upload-btn { font-size:11px; padding:3px 9px; border-radius:var(--radius); border:0.5px solid var(--border); background:transparent; color:var(--text2); cursor:pointer; display:flex; align-items:center; gap:4px; white-space:nowrap; font-family:var(--sans); transition:all 0.12s; }
+  .upload-btn:hover { background:var(--bg2); color:var(--text); }
+  .file-name { font-size:11px; color:var(--text2); max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .clear-file { font-size:12px; color:var(--text3); cursor:pointer; padding:0 2px; background:none; border:none; line-height:1; font-family:var(--sans); }
+  .clear-file:hover { color:var(--text); }
+  input[type=file] { display:none; }
+  textarea { width:100%; height:200px; font-family:var(--mono); font-size:12px; padding:10px 12px; border:0.5px solid var(--border); border-radius:var(--radius); background:var(--bg2); color:var(--text); resize:vertical; line-height:1.65; }
+  textarea:focus { outline:none; border-color:var(--border2); }
+  textarea::placeholder { color:var(--text3); font-style:italic; }
+  textarea.has-file { border-color:#378ADD66; }
+  .drop-zone.dragging textarea { border-color:#378ADD; background:#E6F1FB33; }
+  .drop-hint { font-size:11px; color:var(--text3); margin-top:4px; text-align:center; }
+  .acts { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:1.25rem; }
+  .btn { padding:8px 18px; border-radius:var(--radius); border:0.5px solid var(--border2); background:var(--bg); color:var(--text); font-size:13px; font-weight:500; cursor:pointer; font-family:var(--sans); transition:all 0.12s; }
+  .btn:hover { background:var(--bg2); }
+  .btn:active { transform:scale(.98); }
+  .btn-s { border-color:var(--border); color:var(--text2); background:transparent; }
+  .btn-s:hover { color:var(--text); background:var(--bg2); }
+  .btn-xl { border-color:#185FA5; color:#185FA5; }
+  .btn-xl:hover { background:#E6F1FB; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .chip { font-size:12px; font-weight:600; padding:3px 11px; border-radius:20px; }
+  .ca{background:#EAF3DE;color:#3B6D11} .cr{background:#FCEBEB;color:#A32D2D} .cc{background:#FAEEDA;color:#633806} .cu{background:var(--bg2);color:var(--text2)}
+  .sec-lbl { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--text2); margin-bottom:8px; }
+  .stbl { width:100%; border:0.5px solid var(--border); border-radius:var(--radius); overflow:hidden; font-size:12px; border-collapse:collapse; margin-bottom:1.25rem; }
+  .stbl th { padding:7px 13px; background:var(--bg2); border-bottom:0.5px solid var(--border); text-align:left; font-weight:600; color:var(--text2); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+  .stbl td { padding:6px 13px; border-bottom:0.5px solid var(--border); font-family:var(--mono); vertical-align:middle; }
+  .stbl tr:last-child td { border-bottom:none; }
+  .tr-a td{background:#EAF3DE;color:#27500A} .tr-r td{background:#FCEBEB;color:#791F1F} .tr-c td{background:#FAEEDA44} .tr-u td{color:var(--text3)}
+  .sbdg { font-size:10px; padding:2px 8px; border-radius:10px; font-weight:600; white-space:nowrap; font-family:var(--sans); }
+  .sba{background:#EAF3DE;color:#3B6D11} .sbr{background:#FCEBEB;color:#A32D2D} .sbc{background:#FAEEDA;color:#633806} .sbu{background:var(--bg2);color:var(--text2)}
+  .diff-wrap { border:0.5px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:.5rem; }
+  .diff-hd { display:grid; grid-template-columns:1fr 1fr; background:var(--bg2); border-bottom:0.5px solid var(--border); }
+  .diff-hc { padding:7px 13px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text2); }
+  .diff-hc:first-child { border-right:0.5px solid var(--border); }
+  .diff-body { font-family:var(--mono); font-size:12px; line-height:1.7; max-height:500px; overflow-y:auto; }
+  .dr { display:grid; grid-template-columns:1fr 1fr; }
+  .dr:not(:last-child) { border-bottom:0.5px solid var(--border); }
+  .dc { padding:2px 13px; white-space:pre-wrap; word-break:break-all; min-height:23px; }
+  .dc:first-child { border-right:0.5px solid var(--border); }
+  .ra .dc:last-child{background:#EAF3DE;color:#27500A} .rr .dc:first-child{background:#FCEBEB;color:#791F1F}
+  .rc .dc:first-child{background:#FAEEDA33} .rc .dc:last-child{background:#EAF3DE33} .ru .dc{color:var(--text3)}
+  mark.wd{border-radius:2px;padding:0 1px} mark.wd-d{background:#FAC775;color:#412402} mark.wd-i{background:#C0DD97;color:#173404}
+  .legend { display:flex; align-items:center; gap:12px; font-size:11px; color:var(--text2); margin-bottom:9px; flex-wrap:wrap; }
+  .li{display:flex;align-items:center;gap:4px} .ls{width:10px;height:10px;border-radius:2px;display:inline-block}
+  .no-diff{text-align:center;padding:2rem;color:var(--text2);font-size:14px;border:0.5px solid var(--border);border-radius:var(--radius)}
+  .empty{text-align:center;padding:2rem;color:var(--text2);font-size:13px;border:0.5px solid var(--border);border-radius:var(--radius)}
+  .alert{font-size:12px;padding:8px 12px;border-radius:var(--radius);background:#FAEEDA;color:#633806;margin-bottom:10px;font-weight:600;border:0.5px solid #EF9F2740}
+  footer{text-align:center;font-size:11px;color:var(--text3);margin-top:2rem;padding-top:1rem;border-top:0.5px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="hdr">
+    <span class="hdr-title">Network Pre/Post Migration Comparator</span>
+    <span class="hdr-sub">Cisco ASR9k · Juniper · Nokia</span>
+  </div>
+  <div class="card">
+    <div class="tabs" id="tabBar"></div>
+    <div class="inputs">
+      <div>
+        <div class="panel-top">
+          <div class="plbl lp"><span class="dot dp"></span> Pre-check</div>
+          <div class="upload-row">
+            <span class="file-name" id="pre-fname"></span>
+            <button class="clear-file" id="pre-clear" style="display:none" onclick="clearFile('pre')" title="Remove file">✕</button>
+            <button class="upload-btn" onclick="document.getElementById('pre-file').click()">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 5l4-4 4 4M2 12v1a2 2 0 002 2h8a2 2 0 002-2v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Upload .txt
+            </button>
+            <input type="file" id="pre-file" accept=".txt,.log,.text" onchange="loadFile('pre',this)">
+          </div>
+        </div>
+        <div class="drop-zone" id="pre-drop">
+          <textarea id="preIn" placeholder="Paste pre-migration CLI output here, or upload a .txt file above..."></textarea>
+          <div class="drop-hint">or drag &amp; drop a .txt file onto this area</div>
+        </div>
+      </div>
+      <div>
+        <div class="panel-top">
+          <div class="plbl lq"><span class="dot dq"></span> Post-check</div>
+          <div class="upload-row">
+            <span class="file-name" id="post-fname"></span>
+            <button class="clear-file" id="post-clear" style="display:none" onclick="clearFile('post')" title="Remove file">✕</button>
+            <button class="upload-btn" onclick="document.getElementById('post-file').click()">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 5l4-4 4 4M2 12v1a2 2 0 002 2h8a2 2 0 002-2v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Upload .txt
+            </button>
+            <input type="file" id="post-file" accept=".txt,.log,.text" onchange="loadFile('post',this)">
+          </div>
+        </div>
+        <div class="drop-zone" id="post-drop">
+          <textarea id="postIn" placeholder="Paste post-migration CLI output here, or upload a .txt file above..."></textarea>
+          <div class="drop-hint">or drag &amp; drop a .txt file onto this area</div>
+        </div>
+      </div>
+    </div>
+    <div class="acts">
+      <button class="btn" onclick="runCompare()">Compare</button>
+      <button class="btn btn-xl" id="btnXl" style="display:none" onclick="exportExcel()">Export Excel ↓</button>
+      <button class="btn btn-s" onclick="loadSample()">Load sample</button>
+      <button class="btn btn-s" onclick="doClear()">Clear all</button>
+    </div>
+  </div>
+  <div id="results"></div>
+  <footer>Network Pre/Post Migration Comparator &mdash; Cisco ASR9k MAC · Juniper &amp; Nokia Ping / ARP / Stats</footer>
+</div>
+<script>
+const CHECKS=[
+ {id:'mac-asr9k',label:'MAC address',device:'Cisco ASR9k',b:'c',sp:`Bridge group: BG1, bridge-domain: BD100, id: 1, state: up\n  MAC learning: enabled\n  MAC table:\n    Address     : aabb.cc00.0101\n    Age         : 120\n    From/Where  : GigabitEthernet0/0/0/1\n    Address     : aabb.cc00.0202\n    Age         : 80\n    From/Where  : GigabitEthernet0/0/0/2\n    Address     : aabb.cc00.0303\n    Age         : 45\n    From/Where  : GigabitEthernet0/0/0/3`,sq:`Bridge group: BG1, bridge-domain: BD100, id: 1, state: up\n  MAC learning: enabled\n  MAC table:\n    Address     : aabb.cc00.0101\n    Age         : 30\n    From/Where  : GigabitEthernet0/0/0/1\n    Address     : aabb.cc00.0202\n    Age         : 15\n    From/Where  : GigabitEthernet0/0/0/2\n    Address     : aabb.cc00.0404\n    Age         : 5\n    From/Where  : GigabitEthernet0/0/0/4`},
+ {id:'ping-juniper',label:'Ping',device:'Juniper',b:'j',sp:`PING 10.0.0.1 (10.0.0.1): 56 data bytes\n64 bytes from 10.0.0.1: icmp_seq=0 ttl=64 time=1.234 ms\n64 bytes from 10.0.0.1: icmp_seq=1 ttl=64 time=1.189 ms\n64 bytes from 10.0.0.1: icmp_seq=2 ttl=64 time=1.202 ms\n--- 10.0.0.1 ping statistics ---\n3 packets transmitted, 3 packets received, 0% packet loss\nround-trip min/avg/max/stddev = 1.189/1.207/1.234/0.016 ms`,sq:`PING 10.0.0.1 (10.0.0.1): 56 data bytes\n64 bytes from 10.0.0.1: icmp_seq=0 ttl=64 time=1.890 ms\n64 bytes from 10.0.0.1: icmp_seq=1 ttl=64 time=1.950 ms\n64 bytes from 10.0.0.1: icmp_seq=2 ttl=64 time=12.400 ms\n--- 10.0.0.1 ping statistics ---\n3 packets transmitted, 2 packets received, 33% packet loss\nround-trip min/avg/max/stddev = 1.890/5.413/12.400/4.974 ms`},
+ {id:'ping-nokia',label:'Ping',device:'Nokia',b:'n',sp:`PING 192.168.1.1 56 data bytes\n64 bytes from 192.168.1.1: icmp_seq=1 ttl=255 time=0.8 ms\n64 bytes from 192.168.1.1: icmp_seq=2 ttl=255 time=0.7 ms\n---- 192.168.1.1 PING Statistics ----\n2 packets transmitted, 2 packets received, 0.00% packet loss\nround-trip min = 0.7ms, avg = 0.8ms, max = 0.9ms, stddev = 0.1ms`,sq:`PING 192.168.1.1 56 data bytes\n64 bytes from 192.168.1.1: icmp_seq=1 ttl=255 time=0.9 ms\n64 bytes from 192.168.1.1: icmp_seq=2 ttl=255 time=18.3 ms\n---- 192.168.1.1 PING Statistics ----\n2 packets transmitted, 2 packets received, 0.00% packet loss\nround-trip min = 0.9ms, avg = 9.6ms, max = 18.3ms, stddev = 8.7ms`},
+ {id:'arp-juniper',label:'ARP',device:'Juniper',b:'j',sp:`MAC Address       Address         Name                      Interface           Flags\naa:bb:cc:00:01:01 10.1.1.1        10.1.1.1                  ge-0/0/0.100        none\naa:bb:cc:00:02:02 10.1.1.2        10.1.1.2                  ge-0/0/0.100        none\naa:bb:cc:00:03:03 10.1.1.3        10.1.1.3                  ge-0/0/0.200        none\nTotal entries: 3`,sq:`MAC Address       Address         Name                      Interface           Flags\naa:bb:cc:00:01:01 10.1.1.1        10.1.1.1                  ge-0/0/0.100        none\naa:bb:cc:00:02:02 10.1.1.2        10.1.1.2                  ge-0/0/1.100        none\naa:bb:cc:00:05:05 10.1.1.5        10.1.1.5                  ge-0/0/0.300        none\nTotal entries: 3`},
+ {id:'arp-nokia',label:'ARP',device:'Nokia',b:'n',sp:`ARP Table (Router: Base)\nIP Address        MAC Address       Expiry     Type     Interface\n-------------------------------------------------------------------------------\n172.16.0.1        aa-bb-cc-00-01-01 00h00m00s  Static   toCustomer1\n172.16.0.2        aa-bb-cc-00-02-02 03h45m12s  Dynamic  toCustomer1\n172.16.1.1        aa-bb-cc-00-03-03 02h10m05s  Dynamic  toCustomer2\nNo. of ARP Entries: 3`,sq:`ARP Table (Router: Base)\nIP Address        MAC Address       Expiry     Type     Interface\n-------------------------------------------------------------------------------\n172.16.0.1        aa-bb-cc-00-01-01 00h00m00s  Static   toCustomer1\n172.16.0.2        aa-bb-cc-00-02-02 03h12m44s  Dynamic  toCustomer1\n172.16.1.2        aa-bb-cc-00-04-04 01h55m20s  Dynamic  toCustomer2\nNo. of ARP Entries: 3`},
+ {id:'stats-juniper',label:'Stats',device:'Juniper',b:'j',sp:`Physical interface: ge-0/0/0, Enabled, Physical link is Up\n  Input rate     : 1250000 bps (850 pps)\n  Output rate    : 980000 bps (720 pps)\n  Input errors:\n    Errors: 0, Drops: 0, Framing errors: 0\n  Output errors:\n    Carrier transitions: 1, Errors: 0, Drops: 0\n  Traffic statistics:\n    Input  bytes  :        528492930\n    Output bytes  :        417829321\n    Input  packets:          1923847\n    Output packets:          1654201`,sq:`Physical interface: ge-0/0/0, Enabled, Physical link is Up\n  Input rate     : 1310000 bps (890 pps)\n  Output rate    :  990000 bps (730 pps)\n  Input errors:\n    Errors: 2, Drops: 0, Framing errors: 0\n  Output errors:\n    Carrier transitions: 2, Errors: 0, Drops: 0\n  Traffic statistics:\n    Input  bytes  :        534892100\n    Output bytes  :        422113450\n    Input  packets:          1951023\n    Output packets:          1671890`},
+ {id:'stats-nokia',label:'Stats',device:'Nokia',b:'n',sp:`Port Statistics\n===========================================================\nPort       : 1/1/1\nDescription: toCore1\n===========================================================\n                              Input                Output\n-----------------------------------------------------------\nOctets             :   14582930128       10192847213\nPackets            :     112938471         83920145\nErrors             :             0                0\nDiscards           :             0                0`,sq:`Port Statistics\n===========================================================\nPort       : 1/1/1\nDescription: toCore1\n===========================================================\n                              Input                Output\n-----------------------------------------------------------\nOctets             :   14601283940       10210934827\nPackets            :     113102847         84093210\nErrors             :             3                0\nDiscards           :             1                0`}
+];
+let activeTab=0,saved={},lastResult=null;
+function loadFile(side,input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{const ta=document.getElementById(side==='pre'?'preIn':'postIn');ta.value=e.target.result;ta.classList.add('has-file');document.getElementById(side+'-fname').textContent=file.name;document.getElementById(side+'-clear').style.display='inline';save();};reader.readAsText(file);input.value='';}
+function clearFile(side){const ta=document.getElementById(side==='pre'?'preIn':'postIn');ta.value='';ta.classList.remove('has-file');document.getElementById(side+'-fname').textContent='';document.getElementById(side+'-clear').style.display='none';const c=CHECKS[activeTab];if(!saved[c.id])saved[c.id]={pre:'',post:''};saved[c.id][side]='';}
+['pre','post'].forEach(side=>{const zone=document.getElementById(side+'-drop');const ta=document.getElementById(side==='pre'?'preIn':'postIn');zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragging');});zone.addEventListener('dragleave',()=>zone.classList.remove('dragging'));zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('dragging');const file=e.dataTransfer.files[0];if(!file)return;const ext=file.name.split('.').pop().toLowerCase();if(!['txt','log','text'].includes(ext)){alert('Please drop a .txt or .log file.');return;}const reader=new FileReader();reader.onload=ev=>{ta.value=ev.target.result;ta.classList.add('has-file');document.getElementById(side+'-fname').textContent=file.name;document.getElementById(side+'-clear').style.display='inline';save();};reader.readAsText(file);});});
+function parseMac(t){const o=[];let c=null;t.split('\n').forEach(l=>{let m;if(m=l.match(/Address\s*:\s*([0-9a-f.:-]+)/i)){if(c)o.push(c);c={mac:m[1].toLowerCase().trim()};}if(c&&(m=l.match(/Age\s*:\s*(\d+)/i)))c.age=m[1];if(c&&(m=l.match(/From\/Where\s*:\s*(\S+)/i)))c.iface=m[1];});if(c)o.push(c);return o;}
+function parsePing(t){const s={};let m;if(m=t.match(/(\d+) packets? transmitted[,\s]+(\d+) (?:packets? )?received[,\s]+([\d.]+)%/i)){s['Packets Transmitted']=m[1];s['Packets Received']=m[2];s['Packet Loss']=m[3]+'%';}if(m=t.match(/min\/avg\/max\/stddev\s*=\s*([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+)/i)){s['RTT Min']=m[1]+' ms';s['RTT Avg']=m[2]+' ms';s['RTT Max']=m[3]+' ms';s['RTT Stddev']=m[4]+' ms';}if(m=t.match(/min\s*=\s*([\d.]+)ms.*?avg\s*=\s*([\d.]+)ms.*?max\s*=\s*([\d.]+)ms/is)){s['RTT Min']=m[1]+' ms';s['RTT Avg']=m[2]+' ms';s['RTT Max']=m[3]+' ms';}return s;}
+function parseArpJ(t){const o=[];t.split('\n').forEach(l=>{const m=l.match(/([0-9a-f:]{17})\s+([\d.]+)\s+\S+\s+(\S+)\s+(\S+)/i);if(m)o.push({ip:m[2],mac:m[1],iface:m[3],flags:m[4]});});return o;}
+function parseArpN(t){const o=[];t.split('\n').forEach(l=>{const m=l.match(/([\d.]+)\s+([0-9a-f-]{17})\s+(\S+)\s+(\S+)\s+(\S+)/i);if(m)o.push({ip:m[1],mac:m[2],expiry:m[3],type:m[4],iface:m[5]});});return o;}
+function parseStJ(t){const s={};let m;if(m=t.match(/Input rate\s*:\s*([\d ]+)bps/i))s['Input Rate']=m[1].trim()+' bps';if(m=t.match(/Output rate\s*:\s*([\d ]+)bps/i))s['Output Rate']=m[1].trim()+' bps';const ie=t.match(/Input errors[\s\S]*?Errors:\s*(\d+),\s*Drops:\s*(\d+)/i);if(ie){s['Input Errors']=ie[1];s['Input Drops']=ie[2];}const oe=t.match(/Output errors[\s\S]*?Carrier transitions:\s*(\d+),\s*Errors:\s*(\d+)/i);if(oe){s['Carrier Transitions']=oe[1];s['Output Errors']=oe[2];}if(m=t.match(/Input\s+bytes\s*:\s*([\d\s]+)/i))s['Input Bytes']=m[1].trim().replace(/\s+/g,'');if(m=t.match(/Output bytes\s*:\s*([\d\s]+)/i))s['Output Bytes']=m[1].trim().replace(/\s+/g,'');if(m=t.match(/Input\s+packets\s*:\s*([\d\s]+)/i))s['Input Packets']=m[1].trim().replace(/\s+/g,'');if(m=t.match(/Output packets\s*:\s*([\d\s]+)/i))s['Output Packets']=m[1].trim().replace(/\s+/g,'');return s;}
+function parseStN(t){const s={};t.split('\n').forEach(l=>{let m;if(m=l.match(/Octets\s*:\s*([\d]+)\s+([\d]+)/)){s['Input Octets']=m[1];s['Output Octets']=m[2];}if(m=l.match(/Packets\s*:\s*([\d]+)\s+([\d]+)/)){s['Input Packets']=m[1];s['Output Packets']=m[2];}if(m=l.match(/Errors\s*:\s*([\d]+)\s+([\d]+)/)){s['Input Errors']=m[1];s['Output Errors']=m[2];}if(m=l.match(/Discards\s*:\s*([\d]+)\s+([\d]+)/)){s['Input Discards']=m[1];s['Output Discards']=m[2];}});return s;}
+function cmpKV(p,q){const k=new Set([...Object.keys(p),...Object.keys(q)]);return[...k].map(k=>{const pv=p[k]||'',qv=q[k]||'';return{key:k,pre:pv,post:qv,status:!p[k]?'added':!q[k]?'removed':pv!==qv?'changed':'unchanged'};});}
+function cmpE(pa,qa,kf,flds){const pm={},qm={};pa.forEach(e=>pm[e[kf]]=e);qa.forEach(e=>qm[e[kf]]=e);const ks=new Set([...Object.keys(pm),...Object.keys(qm)]);const r=[];ks.forEach(k=>{const p=pm[k],q=qm[k];if(!p){r.push({key:k,status:'added',pre:{},post:q,fields:flds});return;}if(!q){r.push({key:k,status:'removed',pre:p,post:{},fields:flds});return;}r.push({key:k,status:flds.some(f=>p[f]!==q[f])?'changed':'unchanged',pre:p,post:q,fields:flds});});return r;}
+function getSmart(id,p,q){if(id==='mac-asr9k')return{type:'entries',rows:cmpE(parseMac(p),parseMac(q),'mac',['age','iface']),cols:['mac','age','iface'],labels:['MAC Address','Age (s)','Interface']};if(id==='ping-juniper'||id==='ping-nokia')return{type:'kv',rows:cmpKV(parsePing(p),parsePing(q))};if(id==='arp-juniper')return{type:'entries',rows:cmpE(parseArpJ(p),parseArpJ(q),'ip',['mac','iface','flags']),cols:['ip','mac','iface','flags'],labels:['IP Address','MAC Address','Interface','Flags']};if(id==='arp-nokia')return{type:'entries',rows:cmpE(parseArpN(p),parseArpN(q),'ip',['mac','expiry','type','iface']),cols:['ip','mac','expiry','type','iface'],labels:['IP Address','MAC Address','Expiry','Type','Interface']};if(id==='stats-juniper')return{type:'kv',rows:cmpKV(parseStJ(p),parseStJ(q))};if(id==='stats-nokia')return{type:'kv',rows:cmpKV(parseStN(p),parseStN(q))};return null;}
+function lcs(a,b){const m=a.length,n=b.length;const dp=Array.from({length:m+1},()=>new Int32Array(n+1));for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)dp[i][j]=a[i-1].trim()===b[j-1].trim()?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);const r=[];let i=m,j=n;while(i>0||j>0){if(i>0&&j>0&&a[i-1].trim()===b[j-1].trim()){r.unshift({t:'eq',a:a[i-1],b:b[j-1]});i--;j--;}else if(j>0&&(i===0||dp[i][j-1]>=dp[i-1][j])){r.unshift({t:'add',b:b[j-1]});j--;}else{r.unshift({t:'rem',a:a[i-1]});i--;}}return r;}
+function sim(a,b){const sa=new Set((a||'').split(/\s+/).filter(Boolean)),sb=new Set((b||'').split(/\s+/).filter(Boolean));if(!sa.size||!sb.size)return 0;let n=0;sa.forEach(t=>{if(sb.has(t))n++;});return n/Math.max(sa.size,sb.size);}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function wordDiff(a,b){const ta=a.match(/\S+|\s+/g)||[],tb=b.match(/\S+|\s+/g)||[];if(a===b)return{ha:esc(a),hb:esc(b)};if(ta.length>200||tb.length>200)return{ha:esc(a),hb:esc(b)};const m=ta.length,n=tb.length;const dp=Array.from({length:m+1},()=>new Int32Array(n+1));for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)dp[i][j]=ta[i-1]===tb[j-1]?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);const ops=[];let i=m,j=n;while(i>0||j>0){if(i>0&&j>0&&ta[i-1]===tb[j-1]){ops.unshift({t:'eq',a:ta[i-1],b:tb[j-1]});i--;j--;}else if(j>0&&(i===0||dp[i][j-1]>=dp[i-1][j])){ops.unshift({t:'ins',b:tb[j-1]});j--;}else{ops.unshift({t:'del',a:ta[i-1]});i--;}}let ha='',hb='';ops.forEach(o=>{if(o.t==='eq'){ha+=esc(o.a);hb+=esc(o.b);}else if(o.t==='del')ha+=`<mark class="wd wd-d">${esc(o.a)}</mark>`;else hb+=`<mark class="wd wd-i">${esc(o.b)}</mark>`;});return{ha,hb};}
+function computeDiff(p,q){const pl=p.split('\n'),ql=q.split('\n');const raw=lcs(pl,ql);const rows=[];let blk={rem:[],add:[]};function flush(){if(!blk.rem.length&&!blk.add.length)return;const used=new Set();blk.rem.forEach(r=>{let best=-1,bj=-1;blk.add.forEach((a,j)=>{if(!used.has(j)){const s=sim(r,a);if(s>best){best=s;bj=j;}}});if(best>0.25&&bj>=0){rows.push({type:'changed',a:r,b:blk.add[bj]});used.add(bj);}else rows.push({type:'removed',a:r,b:''});});blk.add.forEach((a,j)=>{if(!used.has(j))rows.push({type:'added',a:'',b:a});});blk={rem:[],add:[]};}raw.forEach(d=>{if(d.t==='eq'){flush();rows.push({type:'unchanged',a:d.a,b:d.b});}else if(d.t==='rem')blk.rem.push(d.a);else blk.add.push(d.b);});flush();return{rows,added:rows.filter(r=>r.type==='added').length,removed:rows.filter(r=>r.type==='removed').length,changed:rows.filter(r=>r.type==='changed').length,unchanged:rows.filter(r=>r.type==='unchanged').length};}
+function sbdg(s){return`<span class="sbdg ${s==='added'?'sba':s==='removed'?'sbr':s==='changed'?'sbc':'sbu'}">${s}</span>`;}
+function rc(s){return s==='added'?'tr-a':s==='removed'?'tr-r':s==='changed'?'tr-c':'tr-u';}
+function renderSmart(sd){if(!sd||!sd.rows.length)return'';if(sd.type==='kv'){let h=`<table class="stbl"><thead><tr><th>Metric</th><th>Pre-check value</th><th>Post-check value</th><th>Status</th></tr></thead><tbody>`;sd.rows.forEach(r=>{h+=`<tr class="${rc(r.status)}"><td>${esc(r.key)}</td><td>${esc(r.pre)}</td><td>${esc(r.post)}</td><td>${sbdg(r.status)}</td></tr>`;});return h+'</tbody></table>';}if(sd.type==='entries'){const L=sd.labels,C=sd.cols;let h=`<table class="stbl"><thead><tr><th>Key</th><th>Field</th><th>Pre-check value</th><th>Post-check value</th><th>Status</th></tr></thead><tbody>`;sd.rows.forEach(r=>{if(r.status==='unchanged'){h+=`<tr class="tr-u"><td>${esc(r.key)}</td><td colspan="3" style="color:var(--text3)">no changes</td><td>${sbdg('unchanged')}</td></tr>`;}else if(r.status==='added'){h+=`<tr class="tr-a"><td>${esc(r.key)}</td><td>new entry</td><td>—</td><td>${esc(C.map(f=>r.post[f]||'').join(' | '))}</td><td>${sbdg('added')}</td></tr>`;}else if(r.status==='removed'){h+=`<tr class="tr-r"><td>${esc(r.key)}</td><td>removed</td><td>${esc(C.map(f=>r.pre[f]||'').join(' | '))}</td><td>—</td><td>${sbdg('removed')}</td></tr>`;}else{r.fields.forEach(f=>{if((r.pre[f]||'')!==(r.post[f]||''))h+=`<tr class="tr-c"><td>${esc(r.key)}</td><td>${esc(L[C.indexOf(f)]||f)}</td><td>${esc(r.pre[f]||'')}</td><td>${esc(r.post[f]||'')}</td><td>${sbdg('changed')}</td></tr>`;});}});return h+'</tbody></table>';}return'';}
+function renderRaw(diff){const CTX=3;let h='';diff.rows.forEach((r,idx)=>{const near=diff.rows.slice(Math.max(0,idx-CTX),idx+CTX+1).some(x=>x.type!=='unchanged');if(!near)return;let ca='',cb='';if(r.type==='unchanged'){ca=esc(r.a);cb=esc(r.b);}else if(r.type==='added'){cb=esc(r.b);}else if(r.type==='removed'){ca=esc(r.a);}else{const wd=wordDiff(r.a,r.b);ca=wd.ha;cb=wd.hb;}const cl=r.type==='unchanged'?'ru':r.type==='added'?'ra':r.type==='removed'?'rr':'rc';h+=`<div class="dr ${cl}"><div class="dc">${ca}</div><div class="dc">${cb}</div></div>`;});return h;}
+function detectAlerts(id,sd){const a=[];if(!sd)return a;if(sd.type==='kv'){sd.rows.forEach(r=>{if(r.status==='changed'){const k=r.key.toLowerCase();if(k.includes('error')&&r.post!=='0')a.push(`${r.key}: ${r.pre} → ${r.post}`);if(k.includes('loss')&&r.post!=='0%'&&r.post!=='0.00%')a.push(`Packet loss detected: ${r.post}`);if(k.includes('drop')&&r.post!=='0')a.push(`${r.key}: ${r.pre} → ${r.post}`);}});}if(sd.type==='entries'){const n=sd.rows.filter(r=>r.status==='added').map(r=>r.key);const m=sd.rows.filter(r=>r.status==='removed').map(r=>r.key);if(n.length)a.push(`New entries: ${n.join(', ')}`);if(m.length)a.push(`Missing entries: ${m.join(', ')}`);}return a;}
+function runCompare(){save();const c=CHECKS[activeTab];const pre=document.getElementById('preIn').value.trim();const post=document.getElementById('postIn').value.trim();if(!pre||!post){document.getElementById('results').innerHTML='<div class="card empty">Paste or upload both pre-check and post-check outputs to compare.</div>';return;}const sd=getSmart(c.id,pre,post);const diff=computeDiff(pre,post);lastResult={c,sd,diff,pre,post};document.getElementById('btnXl').style.display='inline-block';const total=diff.added+diff.removed+diff.changed;const alerts=detectAlerts(c.id,sd);let html='<div class="card">';if(alerts.length)html+=`<div class="alert">⚠ ${alerts.join(' · ')}</div>`;const st=renderSmart(sd);if(st)html+=`<div class="sec-lbl">Smart analysis — ${c.label} / ${c.device}</div>${st}`;html+=`<div class="chips"><span class="chip ca">+ ${diff.added} added</span><span class="chip cr">- ${diff.removed} removed</span><span class="chip cc">~ ${diff.changed} changed</span><span class="chip cu">${diff.unchanged} unchanged</span></div>`;if(total===0){html+='<div class="no-diff">✓ No differences found — pre and post outputs match.</div>';}else{const rawH=renderRaw(diff);html+=`<div class="legend"><span class="sec-lbl" style="margin:0">Side-by-side diff</span><span class="li"><span class="ls" style="background:#FAC775"></span>removed token</span><span class="li"><span class="ls" style="background:#C0DD97"></span>added token</span><span class="li"><span class="ls" style="background:#FCEBEB"></span>removed line</span><span class="li"><span class="ls" style="background:#EAF3DE"></span>added line</span></div><div class="diff-wrap"><div class="diff-hd"><div class="diff-hc">Pre-check</div><div class="diff-hc">Post-check</div></div><div class="diff-body">${rawH}</div></div>`;}html+='</div>';document.getElementById('results').innerHTML=html;}
+function fillColor(s){return s==='added'?'C0DD97':s==='removed'?'F09595':s==='changed'?'FAC775':'F1EFE8';}
+function exportExcel(){if(!lastResult)return;const{c,sd,diff}=lastResult;const wb=XLSX.utils.book_new();const s1=[['Field','Value'],['Check Type',c.label],['Device',c.device],['Lines Added',diff.added],['Lines Removed',diff.removed],['Lines Changed',diff.changed],['Lines Unchanged',diff.unchanged],['Total Differences',diff.added+diff.removed+diff.changed],['Result',diff.added+diff.removed+diff.changed===0?'NO DIFFERENCES':'DIFFERENCES FOUND']];const ws1=XLSX.utils.aoa_to_sheet(s1);ws1['!cols']=[{wch:22},{wch:25}];XLSX.utils.book_append_sheet(wb,ws1,'Summary');if(sd&&sd.rows.length){let headers,rows=[];if(sd.type==='kv'){headers=['Metric','Pre-Check Value','Post-Check Value','Status'];sd.rows.forEach(r=>rows.push([r.key,r.pre,r.post,r.status.toUpperCase()]));}else{headers=['Key','Field','Pre-Check Value','Post-Check Value','Status'];sd.rows.forEach(r=>{if(r.status==='unchanged'){rows.push([r.key,'(all fields)','no change','no change','UNCHANGED']);}else if(r.status==='added'){rows.push([r.key,'new entry','—',sd.cols.map(f=>r.post[f]||'').join(' | '),'ADDED']);}else if(r.status==='removed'){rows.push([r.key,'removed',sd.cols.map(f=>r.pre[f]||'').join(' | '),'—','REMOVED']);}else{r.fields.forEach(f=>{if((r.pre[f]||'')!==(r.post[f]||''))rows.push([r.key,f,r.pre[f]||'',r.post[f]||'','CHANGED']);});}});}const ws2=XLSX.utils.aoa_to_sheet([headers,...rows]);rows.forEach((row,ri)=>{const fill=fillColor(row[row.length-1].toLowerCase());for(let C=0;C<row.length;C++){const addr=XLSX.utils.encode_cell({r:ri+1,c:C});if(!ws2[addr])ws2[addr]={t:'s',v:''};ws2[addr].s={fill:{patternType:'solid',fgColor:{rgb:fill}},font:{name:'Calibri',sz:11}};}});headers.forEach((_,C)=>{const addr=XLSX.utils.encode_cell({r:0,c:C});if(ws2[addr])ws2[addr].s={font:{bold:true,name:'Calibri',sz:11},fill:{patternType:'solid',fgColor:{rgb:'B4B2A9'}}};});ws2['!cols']=headers.map((_,i)=>({wch:i===0?30:i===headers.length-1?12:28}));XLSX.utils.book_append_sheet(wb,ws2,'Smart Analysis');}const rh=['Pre-Check Line','Post-Check Line','Status'];const rr=[];diff.rows.forEach(r=>{rr.push([r.a||'',r.b||'',r.type==='unchanged'?'UNCHANGED':r.type==='added'?'ADDED':r.type==='removed'?'REMOVED':'CHANGED']);});const ws3=XLSX.utils.aoa_to_sheet([rh,...rr]);rr.forEach((row,ri)=>{const fill=fillColor(row[2].toLowerCase());if(fill==='F1EFE8')return;for(let C=0;C<3;C++){const addr=XLSX.utils.encode_cell({r:ri+1,c:C});if(!ws3[addr])ws3[addr]={t:'s',v:''};ws3[addr].s={fill:{patternType:'solid',fgColor:{rgb:fill}},font:{name:'Calibri',sz:11}};}});rh.forEach((_,C)=>{const addr=XLSX.utils.encode_cell({r:0,c:C});if(ws3[addr])ws3[addr].s={font:{bold:true,name:'Calibri',sz:11},fill:{patternType:'solid',fgColor:{rgb:'B4B2A9'}}};});ws3['!cols']=[{wch:65},{wch:65},{wch:12}];XLSX.utils.book_append_sheet(wb,ws3,'Raw Line Diff');XLSX.writeFile(wb,`migration_${c.id}_${new Date().toISOString().slice(0,10)}.xlsx`,{bookSST:false,type:'binary'});}
+function renderTabs(){document.getElementById('tabBar').innerHTML=CHECKS.map((c,i)=>`<button class="tab ${i===activeTab?'active':''}" onclick="switchTab(${i})">${c.label}<span class="bdg b-${c.b}">${c.device}</span></button>`).join('');}
+function switchTab(i){save();activeTab=i;renderTabs();load();document.getElementById('results').innerHTML='';document.getElementById('btnXl').style.display='none';lastResult=null;}
+function save(){const c=CHECKS[activeTab];saved[c.id]={pre:document.getElementById('preIn').value,post:document.getElementById('postIn').value};}
+function load(){const c=CHECKS[activeTab];const d=saved[c.id]||{pre:'',post:''};document.getElementById('preIn').value=d.pre;document.getElementById('postIn').value=d.post;}
+function loadSample(){const c=CHECKS[activeTab];document.getElementById('preIn').value=c.sp;document.getElementById('postIn').value=c.sq;saved[c.id]={pre:c.sp,post:c.sq};}
+function doClear(){['pre','post'].forEach(s=>clearFile(s));document.getElementById('results').innerHTML='';document.getElementById('btnXl').style.display='none';lastResult=null;}
+renderTabs();load();
+</script>
+</body>
+</html>
